@@ -1,106 +1,147 @@
 import os
-import shutil
-from pydantic import BaseModel
+import chromadb
+import nest_asyncio
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
+from pydantic import BaseModel
 
 # LlamaIndex Imports
-from llama_index.core import VectorStoreIndex, StorageContext, Settings
-from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.core import VectorStoreIndex, Settings
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-import chromadb
+from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.vector_stores.chroma import ChromaVectorStore
 
-# Import our Ingestion logic (ensure ingest.py is in the same folder)
-from ingest import ingest_repository
+# Import Ingestion Script
+try:
+    from ingest import ingest_repository
+except ImportError:
+    ingest_repository = None
+    print("⚠️ Warning: ingest.py not found.")
 
-# 1. SETUP
-load_dotenv(override=True)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# --- 1. SETUP ---
+# Patch asyncio for nested loops
+nest_asyncio.apply()
 
-app = FastAPI(title="Cortex RAG API")
+# Load Env
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
-# Allow the frontend to talk to us (CORS)
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found! Please check your .env file.")
+
+# Configure Models
+Settings.llm = GoogleGenAI(model="models/gemini-flash-latest", api_key=api_key)
+Settings.embed_model = GoogleGenAIEmbedding(model="models/text-embedding-004", api_key=api_key)
+
+CHROMA_DB_PATH = "./chroma_db"
+
+app = FastAPI(title="Cortex API - Multi-Context")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
     allow_headers=["*"],
 )
 
-# Global variables to hold the active "Brain"
-query_engine = None
+# --- 2. CONTEXT MANAGER ---
+active_engines = {}
 
-#Configure AI Models
-Settings.llm = GoogleGenAI(model="models/gemini-2.5-flash", api_key=GEMINI_API_KEY)
-Settings.embed_model = GoogleGenAIEmbedding(model="models/text-embedding-004", api_key=GEMINI_API_KEY)
+def get_chat_engine(context_id: str):
+    """Lazy loader for chat engines."""
+    if context_id in active_engines:
+        return active_engines[context_id]
+    
+    if not os.path.exists(CHROMA_DB_PATH):
+        return None
 
-# 2. HELPER: Load the Database
-def load_chat_engine():
-    """Loads the vector DB and prepares the chat engine."""
-    global query_engine
+    db = chromadb.PersistentClient(path=CHROMA_DB_PATH)
     try:
-        db = chromadb.PersistentClient(path="./chroma_db")
-        # Check if collection exists
-        chroma_collection = db.get_collection("cortex_repo")
+        chroma_collection = db.get_collection(context_id)
         vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-        storage_context = StorageContext.from_defaults(vector_store=vector_store)
         index = VectorStoreIndex.from_vector_store(
             vector_store,
-            storage_context=storage_context,
+            embed_model=Settings.embed_model
         )
-        # Create the query engine (chat interface)
-        query_engine = index.as_query_engine()
-        print("Chat Engine Loaded and Ready!")
-    except Exception:
-        print("No existing database found. Please ingest a repository first.")
-        query_engine = None
-    except Exception as e:
-        print(f"Error Loading Chat Engine: {e}")
         
-# Load on startup
-load_chat_engine()
+        engine = index.as_chat_engine(
+            chat_mode="context",
+            system_prompt=f"You are a specialized assistant for the '{context_id}' codebase."
+        )
+        active_engines[context_id] = engine
+        return engine
+    except Exception as e:
+        print(f"⚠️ Context '{context_id}' not found: {e}")
+        return None
 
-#------ API MODELS ------
+# --- 3. DATA MODELS ---
 class IngestRequest(BaseModel):
     repo_url: str
-    
+    repo_name: str
+
 class ChatRequest(BaseModel):
+    context_id: str  # <--- This is what was missing!
     message: str
-    
-#------API ENDPOINTS ------
+
+# --- 4. ENDPOINTS ---
+
 @app.get("/")
 def read_root():
-    return {"status": "Cortex RAG API is running."}
+    return {"status": "Cortex API is running"}
+
+@app.get("/contexts")
+def get_contexts():
+    """Returns a list of all persistent repositories from disk."""
+    try:
+        if not os.path.exists(CHROMA_DB_PATH):
+            return []
+        
+        db = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+        collections = db.list_collections()
+        return [c.name for c in collections]
+    except Exception as e:
+        print(f"Error listing contexts: {e}")
+        return []
 
 @app.post("/ingest")
-def endpoint_ingest(request: IngestRequest):
-    """Endpoint to ingest a GitHub repository."""
-    try: 
-        # 1. Run the ingestion (this re-creates the DB)
-        ingest_repository(request.repo_url)
-        # 2. Reload the chat engine with the new data
-        load_chat_engine()
+async def ingest_endpoint(request: IngestRequest):
+    if not ingest_repository:
+        raise HTTPException(status_code=500, detail="Ingestion script missing.")
+
+    safe_name = "".join(c for c in request.repo_name if c.isalnum() or c in "_-")
+    
+    try:
+        ingest_repository(request.repo_url, safe_name)
         
-        return {"message": f"Successfully ingested {request.repo_url}"}
+        # Reset engine if it exists to force reload
+        if safe_name in active_engines:
+            del active_engines[safe_name]
+            
+        return {"status": "success", "context_id": safe_name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @app.post("/chat")
-def endpoint_chat(request: ChatRequest):
-    """Endpoint to chat with the ingested data."""
-    global query_engine
-    if not query_engine:
-        raise HTTPException(status_code=400, detail="No ingested data found. Please ingest a repository first.")
+async def chat_endpoint(request: ChatRequest):
+    engine = get_chat_engine(request.context_id)
     
-    try: 
-        response = query_engine.query(request.message)
+    if not engine:
+        raise HTTPException(status_code=404, detail="Context not found. Please ingest first.")
+
+    try:
+        response = await engine.achat(request.message)
         return {"response": str(response)}
-    except Exception as e: 
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-    
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

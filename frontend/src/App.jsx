@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import './App.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import './App.css';
+
+// Dynamic API URL for deployment (falls back to localhost for dev)
+const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function App() {
   const [contexts, setContexts] = useState([]);
@@ -9,15 +12,18 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // New State for Ingestion Status
+  const [isIngesting, setIsIngesting] = useState(false);
 
-  // 1. Load available contexts (Sidebar)
+  // 1. Load available contexts on startup
   useEffect(() => {
     fetchContexts();
   }, []);
 
   const fetchContexts = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/contexts");
+      const res = await fetch(`${API_BASE}/contexts`);
       const data = await res.json();
       setContexts(data);
     } catch (err) {
@@ -25,7 +31,7 @@ function App() {
     }
   };
 
-  // 2. Send Message (Includes context_id!)
+  // 2. Handle Sending Messages
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     if (!activeContext) {
@@ -39,18 +45,18 @@ function App() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/chat", {
+      const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          context_id: activeContext, // <--- This fixes the 422 Error
+          context_id: activeContext,
           message: userMessage.text
         }),
       });
 
       if (!res.ok) throw new Error("Chat failed");
+
       const data = await res.json();
-      
       setMessages((prev) => [...prev, { role: "ai", text: data.response }]);
     } catch (err) {
       setMessages((prev) => [...prev, { role: "error", text: "Error: " + err.message }]);
@@ -59,26 +65,33 @@ function App() {
     }
   };
 
-  // 3. Ingest New Repo
+  // 3. Handle New Context Ingestion
   const handleNewIngest = async () => {
     const url = prompt("Git Repo URL (e.g. https://github.com/pallets/flask):");
     if (!url) return;
     const name = prompt("Name this Context (e.g. flask-core):");
     if (!name) return;
 
+    setIsIngesting(true); // Start loading indicator
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/ingest", {
+      const res = await fetch(`${API_BASE}/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repo_url: url, repo_name: name }),
       });
+      
       if (res.ok) {
-        alert("Ingestion Started! This may take a minute...");
-        fetchContexts(); // Refresh sidebar list
+        await fetchContexts(); // Refresh sidebar list
+        alert("Ingestion Complete!");
+      } else {
+        alert("Ingestion failed on server.");
       }
     } catch (err) {
-      console.error(err);
-      alert("Ingestion failed");
+      console.error(err); // Log error to console for debugging
+      alert("Connection failed.");
+    } finally {
+      setIsIngesting(false); // Stop loading indicator
     }
   };
 
@@ -88,18 +101,33 @@ function App() {
       <div className="sidebar">
         <div className="sidebar-header">
           <h2>Cortex</h2>
-          <button onClick={handleNewIngest} className="new-chat-btn">+ New Context</button>
+          <button 
+            onClick={handleNewIngest} 
+            className="new-chat-btn"
+            disabled={isIngesting} // Disable button while working
+          >
+            {isIngesting ? "⏳ Ingesting..." : "+ New Context"}
+          </button>
         </div>
         
         <div className="context-list">
-          {contexts.length === 0 && <p className="empty-msg">No contexts found.</p>}
+          {/* Visual Pulsing Indicator */}
+          {isIngesting && (
+            <div className="ingest-indicator">
+              <span className="pulse-dot"></span>
+              <span>Cloning & Indexing...</span>
+            </div>
+          )}
+
+          {contexts.length === 0 && !isIngesting && <p className="empty-msg">No contexts found.</p>}
+          
           {contexts.map((ctx) => (
             <div 
               key={ctx} 
               className={`context-item ${activeContext === ctx ? 'active' : ''}`}
               onClick={() => {
                 setActiveContext(ctx);
-                setMessages([]); // Clear chat on switch
+                setMessages([]); // Optional: Clear chat when switching
               }}
             >
               # {ctx}
@@ -122,6 +150,7 @@ function App() {
           {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
               <div className="message-content">
+                {/* Markdown Renderer */}
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {msg.text}
                 </ReactMarkdown>

@@ -1,26 +1,24 @@
 version: '3.8'
 
 services:
-  # 1. The Python Backend (FastAPI + ChromaDB)
   backend:
     build: ./backend
     container_name: cortex_backend
     ports:
-      - "8000:8000"  # Expose API to host
+      - "8000:8000"
     volumes:
-      # This maps a folder on your computer to the container.
-      # It ensures your Vector DB persists even if you delete the container.
       - ./chroma_data:/app/chroma_db
     env_file:
-      - .env         # Loads GEMINI_API_KEY from your root .env file
+      - .env
+    # THIS LINE FIXES THE LOOP CRASH
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --loop asyncio
     restart: always
 
-  # 2. The React Frontend (Nginx serving static files)
   frontend:
     build: ./frontend
     container_name: cortex_frontend
     ports:
-      - "3000:80"    # Access UI at localhost:3000
+      - "3000:80"
     depends_on:
-      - backend      # Wait for backend to start
+      - backend
     restart: always

@@ -36,6 +36,11 @@ if not api_key:
 if not api_key:
     raise ValueError("GEMINI_API_KEY not found! Please check your .env file.")
 
+# ---------------------------
+
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found!")
+
 Settings.llm = GoogleGenAI(model="models/gemini-flash-latest", api_key=api_key)
 Settings.embed_model = GoogleGenAIEmbedding(model="models/text-embedding-004", api_key=api_key)
 

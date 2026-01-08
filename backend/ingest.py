@@ -1,6 +1,7 @@
 import os
 import shutil
 import git
+import stat
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -20,17 +21,31 @@ Settings.embed_model = GoogleGenAIEmbedding(
 CHROMA_DB_PATH = "./chroma_db"
 TEMP_CLONE_DIR = "./temp_repos"
 
+# --- HELPER: Windows-safe directory deletion ---
+def remove_readonly(func, path, excinfo):
+    """
+    Error handler for shutil.rmtree.
+    If the file is read-only (common in .git folders), change it to writeable and try again.
+    """
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+def force_delete_temp_dir():
+    if os.path.exists(TEMP_CLONE_DIR):
+        try:
+            shutil.rmtree(TEMP_CLONE_DIR, onerror=remove_readonly)
+        except Exception as e:
+            print(f"Warning: Failed to clean up temp dir: {e}")
+# -----------------------------------------------
+
 def get_chroma_vector_store(collection_name):
     db = chromadb.PersistentClient(path=CHROMA_DB_PATH)
     chroma_collection = db.get_or_create_collection(collection_name)
     return ChromaVectorStore(chroma_collection=chroma_collection)
 
 def ingest_repository(repo_url: str, collection_name: str):
-    if os.path.exists(TEMP_CLONE_DIR):
-        try:
-            shutil.rmtree(TEMP_CLONE_DIR)
-        except:
-            pass
+    # 1. Clean up BEFORE cloning
+    force_delete_temp_dir()
 
     print(f"?? Ingesting Repo: {repo_url} -> {collection_name}")
     try:
@@ -64,11 +79,8 @@ def ingest_repository(repo_url: str, collection_name: str):
         print(f"? Repo Ingestion Error: {e}")
         raise e
     finally:
-        if os.path.exists(TEMP_CLONE_DIR):
-            try:
-                shutil.rmtree(TEMP_CLONE_DIR)
-            except:
-                pass
+        # 2. Clean up AFTER ingestion
+        force_delete_temp_dir()
 
 def ingest_single_file(file_path: str, collection_name: str, original_filename: str):
     print(f"?? Injecting file: {original_filename} -> {collection_name}")

@@ -3,20 +3,23 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css';
 
-// Dynamic API URL for deployment (falls back to localhost for dev)
+// Dynamic API URL (falls back to localhost for dev)
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function App() {
+  // --- STATE ---
   const [contexts, setContexts] = useState([]);
   const [activeContext, setActiveContext] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
-  // New State for Ingestion Status
   const [isIngesting, setIsIngesting] = useState(false);
 
-  // 1. Load available contexts on startup
+  // New State for Single File Upload
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileContextName, setFileContextName] = useState("");
+
+  // --- 1. LOAD CONTEXTS ON STARTUP ---
   useEffect(() => {
     fetchContexts();
   }, []);
@@ -31,7 +34,7 @@ function App() {
     }
   };
 
-  // 2. Handle Sending Messages
+  // --- 2. HANDLE CHAT MESSAGES ---
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     if (!activeContext) {
@@ -65,14 +68,14 @@ function App() {
     }
   };
 
-  // 3. Handle New Context Ingestion
+  // --- 3. HANDLE GIT REPO INGESTION ---
   const handleNewIngest = async () => {
     const url = prompt("Git Repo URL (e.g. https://github.com/pallets/flask):");
     if (!url) return;
     const name = prompt("Name this Context (e.g. flask-core):");
     if (!name) return;
 
-    setIsIngesting(true); // Start loading indicator
+    setIsIngesting(true);
 
     try {
       const res = await fetch(`${API_BASE}/ingest`, {
@@ -83,35 +86,95 @@ function App() {
       
       if (res.ok) {
         await fetchContexts(); // Refresh sidebar list
-        alert("Ingestion Complete!");
+        alert("Repo Ingestion Complete!");
       } else {
         alert("Ingestion failed on server.");
       }
     } catch (err) {
-      console.error(err); // Log error to console for debugging
+      console.error(err);
       alert("Connection failed.");
     } finally {
-      setIsIngesting(false); // Stop loading indicator
+      setIsIngesting(false);
     }
   };
 
+  // --- 4. HANDLE SINGLE FILE UPLOAD ---
+  const handleFileUpload = async () => {
+    if (!selectedFile) return alert("Please select a file first.");
+    if (!fileContextName) return alert("Please enter a Context Name.");
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("context_id", fileContextName);
+
+    setIsIngesting(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/ingest/file`, {
+        method: "POST",
+        body: formData, // No Content-Type needed for FormData
+      });
+
+      if (res.ok) {
+        alert("File Ingested Successfully!");
+        setSelectedFile(null);
+        setFileContextName("");
+        await fetchContexts(); // Refresh sidebar
+      } else {
+        const err = await res.json();
+        alert("Error: " + (err.detail || "Upload failed"));
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Upload failed.");
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  // --- UI RENDER ---
   return (
     <div className="app-container">
       {/* SIDEBAR */}
       <div className="sidebar">
+        
+        {/* Header with Git Ingest Button */}
         <div className="sidebar-header">
           <h2>Cortex</h2>
           <button 
             onClick={handleNewIngest} 
             className="new-chat-btn"
-            disabled={isIngesting} // Disable button while working
+            disabled={isIngesting}
           >
             {isIngesting ? "⏳ Ingesting..." : "+ New Context"}
           </button>
         </div>
+
+        {/* File Upload Section */}
+        <div style={{ padding: '10px', borderBottom: '1px solid #444', marginBottom: '10px' }}>
+          <input
+            type="text"
+            placeholder="Context Name..."
+            value={fileContextName}
+            onChange={(e) => setFileContextName(e.target.value)}
+            style={{ width: '90%', marginBottom: '5px', padding: '5px' }}
+          />
+          <input
+            type="file"
+            onChange={(e) => setSelectedFile(e.target.files[0])}
+            style={{ color: 'white', maxWidth: '180px', marginBottom: '5px' }}
+          />
+          <button 
+            onClick={handleFileUpload} 
+            disabled={isIngesting || !selectedFile || !fileContextName}
+            style={{ width: '100%', padding: '5px', cursor: 'pointer' }}
+          >
+            Upload File
+          </button>
+        </div>
         
+        {/* Context List */}
         <div className="context-list">
-          {/* Visual Pulsing Indicator */}
           {isIngesting && (
             <div className="ingest-indicator">
               <span className="pulse-dot"></span>
@@ -127,7 +190,7 @@ function App() {
               className={`context-item ${activeContext === ctx ? 'active' : ''}`}
               onClick={() => {
                 setActiveContext(ctx);
-                setMessages([]); // Optional: Clear chat when switching
+                setMessages([]); 
               }}
             >
               # {ctx}
@@ -150,7 +213,6 @@ function App() {
           {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
               <div className="message-content">
-                {/* Markdown Renderer */}
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {msg.text}
                 </ReactMarkdown>

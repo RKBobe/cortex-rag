@@ -17,9 +17,17 @@ Settings.embed_model = GoogleGenAIEmbedding(
     model="models/text-embedding-004", 
     api_key=GEMINI_API_KEY
 )
+# Define the root folder on D: drive for ChromaDB storage, or where ever you prefer to put it.
+DATA_DRIVE_ROOT = r"D:\cortex_archive"
 
-CHROMA_DB_PATH = "./chroma_db"
-TEMP_CLONE_DIR = "./temp_repos"
+CHROMA_DB_PATH = os.path.join(DATA_DRIVE_ROOT, "chroma_db")
+TEMP_CLONE_DIR = os.path.join(DATA_DRIVE_ROOT, "temp_repos")
+
+# Ensure the folders are created automatically if they dont exist
+os.makedirs(CHROMA_DB_PATH, exist_ok=True)
+os.makedirs(TEMP_CLONE_DIR, exist_ok=True)
+
+
 
 # --- HELPER: Windows-safe directory deletion ---
 def remove_readonly(func, path, excinfo):

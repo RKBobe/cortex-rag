@@ -44,14 +44,15 @@ if not api_key:
 Settings.llm = GoogleGenAI(model="models/gemini-flash-latest", api_key=api_key)
 Settings.embed_model = GoogleGenAIEmbedding(model="models/text-embedding-004", api_key=api_key)
 
-CHROMA_DB_PATH = "./chroma_db"
+DATA_DRIVE_ROOT = r"D:\cortex_archive"  # Adjust as needed
+CHROMA_DB_PATH = os.path.join(DATA_DRIVE_ROOT, "chroma_db")
 REGISTRY_FILE = "repo_registry.json" # Maps Repo URLs to Context IDs
 
 app = FastAPI(title="Cortex API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],  
     allow_credentials=True, 
     allow_methods=["*"], 
     allow_headers=["*"],

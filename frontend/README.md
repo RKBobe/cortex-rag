@@ -1,16 +1,48 @@
-# React + Vite
+# Cortex-RAG
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Cortex-RAG** is a sophisticated Retrieval-Augmented Generation (RAG) agent designed for context-aware chat. Developed by **Treelight Innovations**, it leverages a modern web stack and advanced vector retrieval to allow users to interact with their data in a natural, conversational manner.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Overview
+The "Cortex" engine acts as a bridge between raw data and Large Language Models (LLMs). It processes documents, stores them in a vector database, and retrieves the most relevant information to augment the generation process, ensuring responses are grounded in specific, provided contexts.
 
-## React Compiler
+### Key Features
+* **Context-Aware Chat:** Intelligent responses based on retrieved document fragments.
+* **Modern UI/UX:** A clean, responsive interface built with React and TypeScript.
+* **Robust Backend:** A high-performance Flask API handling orchestration and retrieval logic.
+* **Efficient Vector Search:** Optimized for fast similarity searches to provide near-instantaneous context injection.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🛠 Tech Stack
+* **Frontend:** React, TypeScript
+* **Backend:** Flask (Python)
+* **Storage:** Vector Database (RAG)
+* **Environment:** Node.js, Python 3.9+
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 📁 Project Structure
+```text
+cortex-rag/
+├── backend/            # Flask API & RAG Logic (See /backend/README.md)
+├── frontend/           # React + TypeScript App
+├── data/               # Local vector storage and document cache
+└── docs/               # Technical documentation
+
+git clone [https://github.com/your-username/cortex-rag.git](https://github.com/your-username/cortex-rag.git)
+cd cortex-rag
+
+
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+
+ Contributing
+Contributions are welcome! Please feel free to submit a Pull Request or open an issue for any bugs or feature requests.
+📄 License
+This project is licensed under the MIT License.
+Developed by Treelight Innovations

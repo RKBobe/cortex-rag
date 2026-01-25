@@ -34,12 +34,18 @@ cortex-rag/
 git clone [https://github.com/your-username/cortex-rag.git](https://github.com/your-username/cortex-rag.git)
 cd cortex-rag
 
-
+## Setup backend:
 cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python app.py
+
+##Setup frontend
+cd ../frontend
+npm install
+npm start
+
 
  Contributing
 Contributions are welcome! Please feel free to submit a Pull Request or open an issue for any bugs or feature requests.

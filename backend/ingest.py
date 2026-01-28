@@ -17,8 +17,13 @@ Settings.embed_model = GoogleGenAIEmbedding(
     model="models/text-embedding-004", 
     api_key=GEMINI_API_KEY
 )
-# Define the root folder on D: drive for ChromaDB storage, or where ever you prefer to put it.
-DATA_DRIVE_ROOT = r"D:\cortex_archive"
+
+# Prevent Git from prompting for credentials (which causes hangs)
+os.environ["GIT_TERMINAL_PROMPT"] = "0"
+
+# Define the root folder for ChromaDB storage
+# Default to a "data" folder in the current directory if not set in env
+DATA_DRIVE_ROOT = os.getenv("DATA_ROOT", os.path.abspath("./data"))
 
 CHROMA_DB_PATH = os.path.join(DATA_DRIVE_ROOT, "chroma_db")
 TEMP_CLONE_DIR = os.path.join(DATA_DRIVE_ROOT, "temp_repos")
@@ -57,7 +62,9 @@ def ingest_repository(repo_url: str, collection_name: str):
 
     print(f"?? Ingesting Repo: {repo_url} -> {collection_name}")
     try:
+        print(f"   - Cloning {repo_url}...")
         git.Repo.clone_from(repo_url, TEMP_CLONE_DIR)
+        print(f"   - Clone complete. Reading files...")
         
         required_exts = [".py", ".js", ".ts", ".html", ".css", ".md", ".json", ".txt", ".java", ".cpp"]
         reader = SimpleDirectoryReader(
@@ -67,6 +74,7 @@ def ingest_repository(repo_url: str, collection_name: str):
             exclude=["*.git*", "*node_modules*"]
         )
         documents = reader.load_data()
+        print(f"   - Found {len(documents)} documents. Preparing to index...")
         
         for doc in documents:
             doc.metadata.update({"source_type": "git_repo", "repo_url": repo_url, "collection": collection_name})
@@ -74,12 +82,14 @@ def ingest_repository(repo_url: str, collection_name: str):
         db = chromadb.PersistentClient(path=CHROMA_DB_PATH)
         try:
             db.delete_collection(collection_name)
+            print(f"   - Deleted existing collection '{collection_name}'")
         except:
             pass 
             
         vector_store = get_chroma_vector_store(collection_name)
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
         
+        print(f"   - Indexing documents (this may take a while)...")
         VectorStoreIndex.from_documents(documents, storage_context=storage_context)
         print(f"? Repo synced to {collection_name}")
         

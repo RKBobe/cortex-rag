@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 # LlamaIndex Imports
@@ -44,7 +45,8 @@ if not api_key:
 Settings.llm = GoogleGenAI(model="models/gemini-flash-latest", api_key=api_key)
 Settings.embed_model = GoogleGenAIEmbedding(model="models/text-embedding-004", api_key=api_key)
 
-DATA_DRIVE_ROOT = r"D:\cortex_archive"  # Adjust as needed
+# Use the same data root logic as ingest.py
+DATA_DRIVE_ROOT = os.getenv("DATA_ROOT", os.path.abspath("./data"))
 CHROMA_DB_PATH = os.path.join(DATA_DRIVE_ROOT, "chroma_db")
 REGISTRY_FILE = "repo_registry.json" # Maps Repo URLs to Context IDs
 
@@ -161,7 +163,7 @@ def get_context_files(context_id: str):
     except: return []
 
 @app.post("/ingest")
-async def ingest_endpoint(request: IngestRequest):
+def ingest_endpoint(request: IngestRequest):
     safe_name = "".join(c for c in request.repo_name if c.isalnum() or c in "_-")
     try:
         ingest_repository(request.repo_url, safe_name)
@@ -182,7 +184,7 @@ async def upload_file_endpoint(context_id: str = Form(...), file: UploadFile = F
         with open(temp_path, "wb") as buffer:
             buffer.write(await file.read())
         
-        ingest_single_file(temp_path, context_id, file.filename)
+        await run_in_threadpool(ingest_single_file, temp_path, context_id, file.filename)
         
         if context_id in active_engines:
             del active_engines[context_id]

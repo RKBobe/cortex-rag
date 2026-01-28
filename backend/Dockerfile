@@ -14,8 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the backend code
 COPY . .
 
+# Set environment variable for data root
+ENV DATA_ROOT=/app/data
+
 # Create the persistent directory
-RUN mkdir -p chroma_db
+RUN mkdir -p ${DATA_ROOT}
 
 # Expose the port
 EXPOSE 8000

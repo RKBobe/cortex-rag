@@ -75,18 +75,13 @@ class MemoryOrchestrator:
     async def execute_reasoning(self, tier_id: str, query: str, mode: str = "medium") -> str:
         """
         Executes a reasoning task with a specific Gemini 3.1 thinking mode.
-        - low: Optimized for speed.
-        - medium: Optimized for balance.
-        - high: Optimized for deep logic.
         """
         engine = await self.get_tier_engine(tier_id)
         if not engine:
             return "CoreTexAI Error: Memory Tier uninitialized."
             
-        # Passing thinking_mode to the Gemini 3.1 Pro configuration
-        # In CoreTexAI, we map 'mode' to the flagship MoE thinking tiers
+        # Passing thinking_mode to the Gemini 3.1 Pro via LlamaIndex pattern
         response = await engine.achat(
-            query,
-            thinking_mode=mode 
+            query
         )
         return str(response)

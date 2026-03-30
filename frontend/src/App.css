@@ -11,30 +11,143 @@ body { font-family: 'Inter', sans-serif; background-color: #343541; color: white
 
 /* SIDEBAR */
 .sidebar {
-  width: 260px;
+  width: 280px;
   background-color: #202123;
-  padding: 1rem;
+  padding: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #4d4d4f;
+  overflow-y: auto;
 }
 
-.sidebar-header h2 { margin-bottom: 1rem; font-size: 1.2rem; }
+.sidebar-header {
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #444;
+}
+
+.sidebar-header h2 { font-size: 1.2rem; }
 
 .new-chat-btn {
-  width: 100%;
-  padding: 10px;
-  background: transparent;
-  border: 1px solid #565869;
+  background-color: #10a37f;
   color: white;
+  border: none;
+  padding: 8px 12px;
   border-radius: 5px;
   cursor: pointer;
-  text-align: left;
+  font-size: 0.85rem;
   transition: background 0.2s;
 }
-.new-chat-btn:hover { background: #2A2B32; }
 
-.context-list { margin-top: 20px; overflow-y: auto; }
+.new-chat-btn:hover { background-color: #1a7f64; }
+.new-chat-btn:disabled { background-color: #444; cursor: not-allowed; }
+
+/* Ingest Form */
+.ingest-form {
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: #2a2b32;
+  border-bottom: 1px solid #444;
+}
+
+.ingest-form input {
+  padding: 8px;
+  background-color: #3e3f4b;
+  border: 1px solid #565869;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.ingest-form button {
+  background-color: #10a37f;
+  color: white;
+  border: none;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* Upload Section */
+.upload-section {
+  padding: 15px;
+  border-bottom: 1px solid #444;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-section h4 {
+  margin: 0 0 5px 0;
+  font-size: 0.75rem;
+  color: #8e8ea0;
+  text-transform: uppercase;
+}
+
+.upload-section input[type="text"] {
+  padding: 6px;
+  background-color: #3e3f4b;
+  border: 1px solid #565869;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.upload-section input[type="file"] {
+  font-size: 0.7rem;
+  color: #ccc;
+}
+
+.upload-section button {
+  padding: 6px;
+  background-color: #444654;
+  color: white;
+  border: 1px solid #565869;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.upload-section button:hover:not(:disabled) {
+  background-color: #565869;
+}
+
+/* Error Box */
+.ingest-error-box {
+  margin: 10px;
+  padding: 10px;
+  background-color: #442a2a;
+  border: 1px solid #ff6b6b;
+  border-radius: 5px;
+  font-size: 0.8rem;
+}
+
+.ingest-error-box p {
+  color: #ffcfcf;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.ingest-error-box button {
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.ingest-error-box button:hover {
+  background: #ff8787;
+}
+
+.context-list { padding: 10px; overflow-y: auto; }
 
 .context-item {
   padding: 10px;

@@ -8,9 +8,14 @@ services:
       - "8000:8000"
     volumes:
       - ./chroma_data:/app/chroma_db
+      - ./data:/app/data
+    environment:
+      - CORTEX_DATA_ROOT=/app/data
+      - CHROMA_DB_PATH=/app/chroma_db
+      - TEMP_BASE_DIR=/app/data/temp_repos
+      - REGISTRY_FILE=/app/data/repo_registry.json
     env_file:
       - .env
-    # THIS LINE FIXES THE LOOP CRASH
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --loop asyncio
     restart: always
 

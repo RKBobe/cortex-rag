@@ -3,44 +3,87 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css';
 
-// Dynamic API URL (falls back to localhost for dev)
+// CoreTexAI Flagship API Configuration
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const CORETEX_API_KEY = import.meta.env.VITE_CORETEX_API_KEY || "treelight-innovation-secure-vault";
 
 function App() {
   // --- STATE ---
-  const [contexts, setContexts] = useState([]);
-  const [activeContext, setActiveContext] = useState(null);
+  const [tiers, setTiers] = useState([]);
+  const [activeTier, setActiveTier] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
+  const [ingestStatusMsg, setIngestStatusMsg] = useState("");
+  const [ingestError, setIngestError] = useState(null);
+  const [pendingTier, setPendingTier] = useState(null);
+  const [thinkingMode, setThinkingMode] = useState("medium");
 
-  // New State for Single File Upload
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileContextName, setFileContextName] = useState("");
+  // Intake Form State
+  const [showIntakeForm, setShowIntakeForm] = useState(false);
+  const [newRepoUrl, setNewRepoUrl] = useState("");
+  const [newTierId, setNewTierId] = useState("");
 
-  // --- 1. LOAD CONTEXTS ON STARTUP ---
+  // Helper for fetch with Treelight Auth
+  const authFetch = (url, options = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        "X-CoreTex-Key": CORETEX_API_KEY,
+      }
+    });
+  };
+
+  // --- 1. LOAD MEMORY TIERS ---
   useEffect(() => {
-    fetchContexts();
+    fetchTiers();
   }, []);
 
-  const fetchContexts = async () => {
+  // Poll for status if a tier is intaking
+  useEffect(() => {
+    let interval;
+    if (isIngesting && pendingTier) {
+      interval = setInterval(async () => {
+        try {
+          const res = await authFetch(`${API_BASE}/intake/status/${pendingTier}`);
+          const data = await res.json();
+          
+          if (data.status === "completed") {
+            setIsIngesting(false);
+            setIngestStatusMsg("");
+            setPendingTier(null);
+            fetchTiers();
+          } else if (data.status === "failed") {
+            setIsIngesting(false);
+            setIngestError(data.error);
+            setIngestStatusMsg("Failed");
+            setPendingTier(null);
+          } else {
+            setIngestStatusMsg(data.status);
+          }
+        } catch (err) {
+          console.error("Status poll failed:", err);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [isIngesting, pendingTier]);
+
+  const fetchTiers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/contexts`);
+      const res = await authFetch(`${API_BASE}/tiers`);
       const data = await res.json();
-      setContexts(data);
+      setTiers(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to load contexts:", err);
+      console.error("Failed to load memory tiers:", err);
     }
   };
 
-  // --- 2. HANDLE CHAT MESSAGES ---
+  // --- 2. HANDLE REASONING (CHAT) ---
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
-    if (!activeContext) {
-      alert("Please select a repository from the sidebar first!");
-      return;
-    }
+    if (!input.trim() || !activeTier) return;
 
     const userMessage = { role: "user", text: input };
     setMessages((prev) => [...prev, userMessage]);
@@ -48,87 +91,59 @@ function App() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await authFetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          context_id: activeContext,
-          message: userMessage.text
+          tier_id: activeTier,
+          message: userMessage.text,
+          thinking_mode: thinkingMode
         }),
       });
 
-      if (!res.ok) throw new Error("Chat failed");
+      if (!res.ok) throw new Error("Reasoning engine failed");
 
       const data = await res.json();
       setMessages((prev) => [...prev, { role: "ai", text: data.response }]);
     } catch (err) {
-      setMessages((prev) => [...prev, { role: "error", text: "Error: " + err.message }]);
+      setMessages((prev) => [...prev, { role: "error", text: "CoreTexAI Error: " + err.message }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- 3. HANDLE GIT REPO INGESTION ---
-  const handleNewIngest = async () => {
-    const url = prompt("Git Repo URL (e.g. https://github.com/pallets/flask):");
-    if (!url) return;
-    const name = prompt("Name this Context (e.g. flask-core):");
-    if (!name) return;
+  // --- 3. HANDLE MEMORY INTAKE ---
+  const handleNewIntake = async (e) => {
+    e.preventDefault();
+    if (!newRepoUrl || !newTierId) return;
 
+    const safeId = newTierId.replace(/[^a-z0-9_-]/gi, "");
     setIsIngesting(true);
+    setIngestStatusMsg("starting");
+    setIngestError(null);
+    setPendingTier(safeId);
+    setShowIntakeForm(false);
 
     try {
-      const res = await fetch(`${API_BASE}/ingest`, {
+      const res = await authFetch(`${API_BASE}/intake`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_url: url, repo_name: name }),
+        body: JSON.stringify({ repo_url: newRepoUrl, tier_id: safeId }),
       });
       
-      if (res.ok) {
-        await fetchContexts(); // Refresh sidebar list
-        alert("Repo Ingestion Complete!");
+      if (!res.ok) {
+        alert("Treelight Gateway rejected intake request.");
+        setIsIngesting(false);
+        setPendingTier(null);
       } else {
-        alert("Ingestion failed on server.");
+        setNewRepoUrl("");
+        setNewTierId("");
       }
     } catch (err) {
       console.error(err);
-      alert("Connection failed.");
-    } finally {
+      alert("CoreTexAI Connection failed.");
       setIsIngesting(false);
-    }
-  };
-
-  // --- 4. HANDLE SINGLE FILE UPLOAD ---
-  const handleFileUpload = async () => {
-    if (!selectedFile) return alert("Please select a file first.");
-    if (!fileContextName) return alert("Please enter a Context Name.");
-
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("context_id", fileContextName);
-
-    setIsIngesting(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/ingest/file`, {
-        method: "POST",
-        body: formData, // No Content-Type needed for FormData
-      });
-
-      if (res.ok) {
-        alert("File Ingested Successfully!");
-        setSelectedFile(null);
-        setFileContextName("");
-        await fetchContexts(); // Refresh sidebar
-      } else {
-        const err = await res.json();
-        alert("Error: " + (err.detail || "Upload failed"));
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("Upload failed.");
-    } finally {
-      setIsIngesting(false);
+      setPendingTier(null);
     }
   };
 
@@ -138,62 +153,80 @@ function App() {
       {/* SIDEBAR */}
       <div className="sidebar">
         
-        {/* Header with Git Ingest Button */}
         <div className="sidebar-header">
-          <h2>Cortex</h2>
+          <h2>CoreTexAI</h2>
           <button 
-            onClick={handleNewIngest} 
+            onClick={() => setShowIntakeForm(!showIntakeForm)} 
             className="new-chat-btn"
             disabled={isIngesting}
           >
-            {isIngesting ? "⏳ Ingesting..." : "+ New Context"}
+            {showIntakeForm ? "Cancel" : "+ New Tier"}
           </button>
         </div>
 
-        {/* File Upload Section */}
-        <div style={{ padding: '10px', borderBottom: '1px solid #444', marginBottom: '10px' }}>
-          <input
-            type="text"
-            placeholder="Context Name..."
-            value={fileContextName}
-            onChange={(e) => setFileContextName(e.target.value)}
-            style={{ width: '90%', marginBottom: '5px', padding: '5px' }}
-          />
-          <input
-            type="file"
-            onChange={(e) => setSelectedFile(e.target.files[0])}
-            style={{ color: 'white', maxWidth: '180px', marginBottom: '5px' }}
-          />
-          <button 
-            onClick={handleFileUpload} 
-            disabled={isIngesting || !selectedFile || !fileContextName}
-            style={{ width: '100%', padding: '5px', cursor: 'pointer' }}
+        {/* Intake Form */}
+        {showIntakeForm && (
+          <form className="ingest-form" onSubmit={handleNewIntake}>
+            <input 
+              type="text" 
+              placeholder="Tier ID (e.g. backend-core)" 
+              value={newTierId}
+              onChange={(e) => setNewTierId(e.target.value)}
+              required
+            />
+            <input 
+              type="url" 
+              placeholder="Git Repository URL" 
+              value={newRepoUrl}
+              onChange={(e) => setNewRepoUrl(e.target.value)}
+              required
+            />
+            <button type="submit">Start Intake</button>
+          </form>
+        )}
+
+        <div className="thinking-mode-selector" style={{ padding: '10px', borderBottom: '1px solid #333' }}>
+          <label style={{ fontSize: '12px', color: '#888' }}>Thinking Mode:</label>
+          <select 
+            value={thinkingMode} 
+            onChange={(e) => setThinkingMode(e.target.value)}
+            style={{ background: '#222', color: '#fff', border: '1px solid #444', width: '100%', marginTop: '5px' }}
           >
-            Upload File
-          </button>
+            <option value="low">Low (Fast)</option>
+            <option value="medium">Medium (Balanced)</option>
+            <option value="high">High (Deep Reasoning)</option>
+          </select>
         </div>
         
-        {/* Context List */}
+        {/* Memory Tier List */}
         <div className="context-list">
           {isIngesting && (
             <div className="ingest-indicator">
               <span className="pulse-dot"></span>
-              <span>Cloning & Indexing...</span>
+              <span style={{ textTransform: 'capitalize' }}>Intaking {ingestStatusMsg}...</span>
             </div>
           )}
 
-          {contexts.length === 0 && !isIngesting && <p className="empty-msg">No contexts found.</p>}
+          {ingestError && (
+            <div className="ingest-error-box">
+              <p>Provenance Error: {ingestError}</p>
+              <button onClick={() => setIngestError(null)}>Dismiss</button>
+            </div>
+          )}
+
+          {tiers.length === 0 && !isIngesting && <p className="empty-msg">No active memory tiers.</p>}
           
-          {contexts.map((ctx) => (
+          {tiers.map((tier) => (
             <div 
-              key={ctx} 
-              className={`context-item ${activeContext === ctx ? 'active' : ''}`}
+              key={tier.tier_id} 
+              className={`context-item ${activeTier === tier.tier_id ? 'active' : ''}`}
               onClick={() => {
-                setActiveContext(ctx);
+                setActiveTier(tier.tier_id);
                 setMessages([]); 
               }}
             >
-              # {ctx}
+              # {tier.tier_id}
+              <span style={{ fontSize: '10px', display: 'block', color: '#666' }}>{tier.status}</span>
             </div>
           ))}
         </div>
@@ -202,14 +235,20 @@ function App() {
       {/* CHAT AREA */}
       <div className="chat-area">
         <div className="chat-header">
-          {activeContext ? (
-            <h3>Context: <span className="highlight">{activeContext}</span></h3>
+          {activeTier ? (
+            <h3>Memory Tier: <span className="highlight">{activeTier}</span></h3>
           ) : (
-            <h3>Select a repository to start</h3>
+            <h3>Select a CoreTexAI Memory Tier</h3>
           )}
         </div>
 
         <div className="messages-container">
+          {messages.length === 0 && !activeTier && (
+            <div className="welcome-msg">
+              <h1>CoreTexAI Flagship</h1>
+              <p>Proprietary Memory Orchestration Engine by Treelight Innovations.</p>
+            </div>
+          )}
           {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
               <div className="message-content">
@@ -219,20 +258,30 @@ function App() {
               </div>
             </div>
           ))}
-          {isLoading && <div className="message ai">Thinking...</div>}
+          {isLoading && <div className="message ai">CoreTexAI is thinking...</div>}
         </div>
 
         <div className="input-area">
           <input 
             type="text" 
-            placeholder={activeContext ? `Ask about ${activeContext}...` : "Select a repo from sidebar..."}
+            placeholder={activeTier ? `Query ${activeTier} vault...` : "Select a tier to begin reasoning..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            disabled={!activeContext}
+            disabled={!activeTier}
           />
-          <button onClick={handleSendMessage} disabled={!activeContext}>Send</button>
+          <button onClick={handleSendMessage} disabled={!activeTier}>Query Vault</button>
         </div>
+      </div>
+      <div className="proprietary-footer" style={{ 
+        textAlign: 'center', 
+        fontSize: '10px', 
+        color: '#444', 
+        padding: '10px', 
+        borderTop: '1px solid #222',
+        background: '#0a0a0a'
+      }}>
+        Proprietary Product of Treelight Innovations &copy; 2026 | CoreTexAI v1.0.0-Flagship
       </div>
     </div>
   );

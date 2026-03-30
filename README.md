@@ -1,34 +1,45 @@
-# Cortex-RAG
+# CoreTexAI | Treelight Innovations
 
-**Cortex-RAG** is a sophisticated Retrieval-Augmented Generation (RAG) agent designed for context-aware chat. Developed by **Treelight Innovations**, it leverages a modern web stack and advanced vector retrieval to allow users to interact with their data in a natural, conversational manner.
+**CoreTexAI** is a flagship **Memory Orchestration Engine** designed for high-performance, stateful intelligence. Developed by **Treelight Innovations**, it represents the evolution of RAG into a persistent, multi-tiered knowledge vault.
 
 ---
 
-## 🚀 Overview
-The "Cortex" engine acts as a bridge between raw data and Large Language Models (LLMs). It processes documents, stores them in a vector database, and retrieves the most relevant information to augment the generation process, ensuring responses are grounded in specific, provided contexts.
+## 🚀 The Flagship Advantage
+Unlike standard RAG prototypes, **CoreTexAI** is built for the enterprise, leveraging state-of-the-art orchestration and non-blocking data intake.
 
-### Key Features
-* **Context-Aware Chat:** Intelligent responses based on retrieved document fragments.
-* **Modern UI/UX:** A clean, responsive interface built with React and TypeScript.
-* **Robust Backend:** A high-performance Flask API handling orchestration and retrieval logic.
-* **Efficient Vector Search:** Optimized for fast similarity searches to provide near-instantaneous context injection.
+### Key Innovations
+*   **Gemini 3.1 Pro Orchestration:** Native integration with the three-tier thinking system (**Low**, **Medium**, **High**) for dynamic IQ control.
+*   **Tiered Memory Vaults:** Persistent relational tracking of all intelligence tiers—no more "amnesiac" sessions.
+*   **Async-First Intake:** A non-blocking ingestion engine that handles enterprise-scale data without lagging the Gateway.
+*   **Enterprise Security:** A proprietary encrypted vault tier for master keys and gateway secrets.
+*   **Resilient Intelligence:** Integrated exponential backoff and jitter to weather API rate limits and ensure uptime.
 
 ---
 
 ## 🛠 Tech Stack
-* **Frontend:** React, TypeScript
-* **Backend:** Flask (Python)
-* **Storage:** Vector Database (RAG)
-* **Orchestration:** Python-based RAG pipeline
+*   **Orchestrator:** Gemini 3.1 Pro (Mixture-of-Experts)
+*   **Gateway:** FastAPI (Asynchronous Python)
+*   **Intelligence Tiers:** ChromaDB (Vector) + SQLite (Relational)
+*   **Frontend:** React 19 + Vite + Framer Motion
+*   **Security:** AES-256 Fernet Encryption
 
 ---
 
-## 📁 Project Structure
-To maintain a clean codebase, detailed technical documentation is split across the respective service directories:
+## 📁 Project Architecture
+CoreTexAI is designed with a strict separation of concerns to ensure modular scalability:
 
 ```text
-cortex-rag/
-├── backend/            # Flask API, Vector DB & RAG Logic (See /backend/README.md)
-├── frontend/           # React + TypeScript App (See /frontend/README.md)
-├── data/               # Local vector storage and document cache
-└── docs/               # Technical documentation and architecture logs
+coretex-ai/
+├── backend/            # Core Intelligence Gateway & Memory Orchestrator
+├── frontend/           # Flagship Interactive UI
+├── vault/              # Encrypted master keys and persistent metadata
+└── nm_agent/           # Real-time keystroke correction & contextual refiner
+```
+
+---
+
+## 🔒 Security & Provenance
+Every piece of data ingested into the CoreTexAI ecosystem is injected with **Treelight Innovations** provenance tags, ensuring clear data lineage and proprietary compliance.
+
+---
+**Proprietary Product of Treelight Innovations &copy; 2026**

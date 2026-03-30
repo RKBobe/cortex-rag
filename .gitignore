@@ -6,11 +6,15 @@ venv/
 .venv/           
 .env
 
-# --- Data & Storage (Matches your ingest.py config) ---
-chroma_db/
-backend/chroma_db/
-temp_repos/
-backend/temp_repos/
+# --- CoreTexAI Tiered Storage & Vault ---
+vault/
+backend/vault/
+registry.sqlite
+backend/registry.sqlite
+memory_vault/
+backend/memory_vault/
+*.crypt
+*.key
 
 # --- Node / Frontend ---
 node_modules/
